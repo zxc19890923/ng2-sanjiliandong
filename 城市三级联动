@@ -1,0 +1,178 @@
+其实express就是为了提供数据，根据条件查找信息
+没有添加美化样式，自己可以优化css样式。
+
+1、html界面
+
+<h4 type="info">省市县三级联动 {{address}}</h4>
+<p>
+    <input type="text" [(ngModel)]="address" name="address" class="form-control" (click)="provinceClick()" placeholder="请选择城市"/>
+</p>
+<div class="row">
+    <div class="col-sm-12">
+      <span *ngFor="let item of provinceData" (click)="provinceChange(item.ProID, item.name)">{{item.name}}<span class="text-primary"> | </span></span>
+    </div>
+</div>
+<br/>
+<div class="row">
+    <div class="col-sm-12" >
+      <span *ngFor="let item of cityData" (click)="cityChange(item.CityID, item.name)">{{item.name}}<span class="text-primary"> | </span></span>
+    </div>
+</div>
+<br/>
+<div class="row">
+    <div class="col-sm-12">
+      <span *ngFor="let item of countryData" (click)="countryChange(item.DisName)">{{item.DisName}}<span class="text-primary"> | </span></span>
+    </div>
+</div>
+2、和新ng2代码
+
+import {Component, OnInit} from "@angular/core";
+import {HttpServer} from "../servers/http.server";
+import {URLSearchParams} from "@angular/http";
+@Component({
+  selector: "sport-home",
+  templateUrl: "../templates/home.component.html",
+  providers: []
+})
+export class HomeComponent {
+  address: string;
+  province: string;
+  city: string;
+  country: string;
+
+  provinceData: Array<Object>;
+  cityData: Array<Object>;
+  countryData: Array<Object>;
+
+  constructor(public httpServer:HttpServer) {
+    this.province = "";
+    this.city = "";
+    this.country = "";
+
+    this.provinceData = [];
+    this.cityData = [];
+    this.countryData = [];
+
+    this.address = "";
+
+  }
+
+  // 获取省份
+  provinceClick() {
+    var url = "http://localhost:3000/province";
+    var params = new URLSearchParams();
+    params.set("callback", "JSONP_CALLBACK");
+    this.httpServer.jsonpGet(url, params).subscribe(res=> {
+      console.log(res);
+      this.provinceData = res;
+    });
+    this.address = "";
+  }
+  // 单机省份
+  provinceChange(ProID, name) {
+    var url = "http://localhost:3000/city";
+    var params = new URLSearchParams();
+    params.set("ProID", ProID);
+    params.set("callback", "JSONP_CALLBACK");
+
+    this.httpServer.jsonpGet(url, params).subscribe(res=> {
+      console.log(res);
+      this.cityData = res;
+    });
+
+    this.province = name;
+
+    this.address = this.province;
+  }
+  // 单机市
+  cityChange(CityID, name) {
+    var url = "http://localhost:3000/country";
+    var params = new URLSearchParams();
+    params.set("CityID", CityID);
+    params.set("callback", "JSONP_CALLBACK");
+    this.httpServer.jsonpGet(url, params).subscribe(res=> {
+      console.log(res);
+      this.countryData = res;
+
+      this.city = name;
+
+      this.address = this.province + "," + this.city;
+    })
+  }
+  countryChange(name) {
+    this.country = name;
+    this.address = this.province + "," + this.city + "," + this.country;
+
+    // 最后一步选中后, 隐藏数据。
+    this.provinceData = [];
+    this.cityData = [];
+    this.countryData = [];
+  }
+}
+3、封装的获取数据的服务http.server.ts
+
+import {Injectable} from "@angular/core";
+import {Http, Jsonp} from "@angular/http";
+import "rxjs/add/operator/map";
+@Injectable()
+export class HttpServer {
+  constructor(public http:Http, public jsonp:Jsonp) {
+
+  }
+
+  httpGet(url, params) {
+    return this.http.get(url, {search: params}).map(result=>result.json());
+  }
+
+  httpPost(url, params) {
+    return this.http.post(url, {search: params}).map(result=>result.json());
+  }
+
+  jsonpGet(url, params) {
+    return this.jsonp.get(url, {search: params}).map(result=>result.json());
+  }
+}
+4、express的核心代码
+
+province.js
+
+var express = require("express");
+var router = express.Router();
+var connection = require("../conf/db");
+
+router.get("/", function (req, res, next) {
+    connection("select * from province", function (err, rows, fields) {
+        console.log(rows);
+        res.jsonp(rows);
+    })
+});
+module.exports = router;
+city.js
+
+var express = require("express");
+var router = express.Router();
+var connection = require("../conf/db");
+
+router.get("/", function (req, res, next) {
+    var proId = req.query.ProID;
+    connection("select * from city where ProID='" + proId + "'", function (err, rows, fields) {
+        console.log(rows);
+        res.jsonp(rows);
+    })
+});
+module.exports = router;
+country.js
+
+var express = require("express");
+var router = express.Router();
+var connecion = require("../conf/db");
+
+router.get("/", function (req, res, next) {
+    var CityID = req.query.CityID;
+    connecion("select * from country where CityID = '" + CityID + "'", function (err, rows, fields) {
+        console.log(rows);
+        res.jsonp(rows);
+    })
+});
+
+module.exports = router;
